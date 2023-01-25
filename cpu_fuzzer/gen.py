@@ -17,27 +17,21 @@ def gen_addis():
 
     return f"addis {gpr}, {gpr}, {imm};"
 
-def gen_tests():
+def emit_random_state(file):
+    for i in range(0, 32):
+        value = random.randint(0, 0xffffffff)
+        file.write(f"lis r{i}, {hex(value >> 16)}\n")
+        file.write(f"addi r{i}, {hex(value & 0xffff)}\n")
+
+def emit_tests():
     with open(TESTCASES_SOURCE_PATH, 'w') as testcases:
-        testcases.write(".global run_tests\n")
-        testcases.write("run_tests:\n")
-        # Signal to Dolphin that we're beginning the tests and to start logging
-        testcases.write("lis 29, 0x1234;\n")
-        testcases.write("addi 29, 29, 0x5678;\n")
-        testcases.write("mtctr 29;\n")
-
-        # Perform the tests
-        testcases.write(gen_addis() + '\n')
-        testcases.write("bl store_cpu_state;\n")
-
-        # Signal to Dolphin that we're done with the tests
-        testcases.write("lis 29, 0x8765;\n")
-        testcases.write("addi 29, 29, 0x4321;\n")
-        testcases.write("mtctr 29;\n")
+        testcases.write("_start:\n")
+        emit_random_state(testcases)
 
 def run_tests():
-    if subprocess.run(["make"]).returncode != 0:
-        error("make failed")
+    # TODO: figure out the command we need for compiling
+    # if subprocess.run(["make"]).returncode != 0:
+    #     error("make failed")
 
     # pass the addr into dolphin so it knows where to put its PC
     p = subprocess.run([
@@ -53,7 +47,7 @@ def parse_results(results):
     print(":)")
 
 def main():
-    gen_tests()
+    emit_tests()
     results = run_tests()
 
     parse_results(results)
