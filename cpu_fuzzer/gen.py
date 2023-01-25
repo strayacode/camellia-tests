@@ -33,6 +33,9 @@ def run_tests():
     # if subprocess.run(["make"]).returncode != 0:
     #     error("make failed")
 
+    # call this command
+    # ./vasmppc_std -Fbin -big -o fuzzer.dol source/main.s
+
     # pass the addr into dolphin so it knows where to put its PC
     p = subprocess.run([
         DOLPHIN_PATH, 
