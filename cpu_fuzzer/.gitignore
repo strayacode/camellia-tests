@@ -1,1 +1,2 @@
-source/testcases.s
+*.s
+vasmppc_std

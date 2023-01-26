@@ -1,5 +1,6 @@
 *.dol
 *.elf
+*.bin
 build/
 bin/
 .DS_Store

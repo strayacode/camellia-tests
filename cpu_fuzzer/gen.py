@@ -1,13 +1,13 @@
 import os
 import random
 import subprocess
+import sys
 
-TESTCASES_SOURCE_PATH   = "source/testcases.s"
+TESTCASES_SOURCE_PATH   = "testcases.s"
 FUZZER_BIN_PATH         = "./cpu_fuzzer.bin"
 FUZZER_DOL_PATH         = "./cpu_fuzzer.dol"
 DOLPHIN_PATH            = "dolphin-emu-nogui"
-FUZZER_TMP_RESULTS_PATH = "./camellia_fuzzer.log"
-VASM_PATH               = "vasmppc_std"
+VASM_PATH               = "./vasmppc_std"
 
 def error(msg):
     print("Error: ", msg)
@@ -17,11 +17,14 @@ def sext(value, bits):
     mask = 2**(bits - 1)
     return -(value & mask) + (value & ~mask)
 
-def gen_addis():
-    gpr = random.randint(0, 31)
-    imm = random.randint(0, 65535)
+def simm():
+    return hex(sext(random.randint(0, 0xffff), 16))
 
-    return f"addis {gpr}, {gpr}, {imm};"
+def uimm():
+    return hex(random.randint(0, 0xffff))
+
+def gpr():
+    return random.randint(0, 31)
 
 def emit_random_state(file):
     for i in range(0, 32):
@@ -29,11 +32,14 @@ def emit_random_state(file):
         file.write(f"lis r{i}, {hex(value >> 16)}\n")
         file.write(f"addi r{i}, r{i}, {hex(sext(value & 0xffff, 16))}\n")
 
+def emit_addis(file):
+    file.write(f"addis r{gpr()}, r{gpr()}, {simm()}\n")
+
 def emit_addi_flags(file):
-    src1 = random.randint(0, 31)
-    src2 = random.randint(0, 31)
-    dst  = random.randint(0, 31)
-    file.write(f"add. {dst}, {src1}, {src2}\n")
+    file.write(f"add. r{gpr()}, r{gpr()}, r{gpr()}\n")
+
+def emit_ori(file):
+    file.write(f"ori r{gpr()}, r{gpr()}, {uimm()}\n")
 
 def emit_tests():
     with open(TESTCASES_SOURCE_PATH, 'w') as testcases:
@@ -41,16 +47,18 @@ def emit_tests():
         emit_random_state(testcases)
 
         for i in range(1000):
+            emit_addis(testcases)
+
+        for i in range(1000):
             emit_addi_flags(testcases)
+
+        for i in range(1000):
+            emit_ori(testcases)
 
         testcases.write("end:\n")
         testcases.write("   b end\n")
 
 def compile_tests():
-    # TODO: figure out the command we need for compiling
-    # if subprocess.run(["make"]).returncode != 0:
-    #     error("make failed")
-
     # call this command
     # ./vasmppc_std -Fbin -big -o fuzzer.dol source/main.s
     
@@ -98,7 +106,6 @@ def compile_tests():
             dol.write(bin.read())
 
 def run_tests():
-    # pass the addr into dolphin so it knows where to put its PC
     p = subprocess.run([
         DOLPHIN_PATH, 
         "-e", FUZZER_DOL_PATH, 
@@ -113,7 +120,15 @@ def parse_results(results):
 
 def main():
     emit_tests()
+
+    if "--emit" in sys.argv[1:]:
+        return
+
     compile_tests()
+
+    if "--compile" in sys.argv[1:]:
+        return
+
     results = run_tests()
 
     parse_results(results)
