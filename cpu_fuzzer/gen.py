@@ -112,10 +112,10 @@ def emit_cntlzwx(file):
     file.write(f"cntlzw{rc()} {gpr()}, {gpr()}\n")
 
 def emit_divwux(file):
-    file.write(f"divwu{oe()}{rc()} {gpr()}, {gpr()}\n")
+    file.write(f"divwu{oe()}{rc()} {gpr()}, {gpr()}, {gpr()}\n")
 
 def emit_divwx(file):
-    file.write(f"divw{oe()}{rc()} {gpr()}, {gpr()}\n")
+    file.write(f"divw{oe()}{rc()} {gpr()}, {gpr()}, {gpr()}\n")
 
 def emit_eqvx(file):
     file.write(f"eqv{rc()} {gpr()}, {gpr()}, {gpr()}\n")
