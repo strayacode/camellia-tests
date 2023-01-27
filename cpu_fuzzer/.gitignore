@@ -1,3 +1,4 @@
 *.s
+*.log
 vasmppc_std
 dolphin-emu-nogui
