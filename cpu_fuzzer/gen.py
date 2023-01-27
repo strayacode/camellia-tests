@@ -4,10 +4,11 @@ import subprocess
 import sys
 
 TESTCASES_SOURCE_PATH   = "testcases.s"
-FUZZER_BIN_PATH         = "./cpu_fuzzer.bin"
-FUZZER_DOL_PATH         = "./cpu_fuzzer.dol"
-DOLPHIN_PATH            = "dolphin-emu-nogui"
+FUZZER_BIN_PATH         = "cpu_fuzzer.bin"
+FUZZER_DOL_PATH         = "cpu_fuzzer.dol"
+DOLPHIN_PATH            = "./dolphin-emu-nogui"
 VASM_PATH               = "./vasmppc_std"
+DOLPHIN_LOG             = "dolphin.log"
 
 def error(msg):
     print("Error: ", msg)
@@ -261,8 +262,8 @@ integer_emitters = [
     emit_subfmex,
     emit_subfzex,
     emit_subfx,
-    emit_tw,
-    emit_twi,
+    # emit_tw,
+    # emit_twi,
     emit_xori,
     emit_xoris,
     emit_xorx,
@@ -336,17 +337,12 @@ def compile_tests():
             dol.write(bin.read())
 
 def run_tests():
+    dolphin_log = open(DOLPHIN_LOG, "w")
     p = subprocess.run([
         DOLPHIN_PATH, 
         "-e", FUZZER_DOL_PATH, 
         "--platform=headless"
-    ], stdout=subprocess.PIPE)
-    
-    return p.stdout.decode()
-
-def parse_results(results):
-    print(results)
-    print(":)")
+    ], stdout=dolphin_log)
 
 def main():
     emit_tests()
@@ -359,9 +355,7 @@ def main():
     if "--compile" in sys.argv[1:]:
         return
 
-    results = run_tests()
-
-    parse_results(results)
+    run_tests()
 
 if __name__ == "__main__":
     main()
