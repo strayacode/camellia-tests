@@ -6,13 +6,11 @@ import sys
 TESTCASES_SOURCE_PATH   = "testcases.s"
 FUZZER_BIN_PATH         = "cpu_fuzzer.bin"
 FUZZER_DOL_PATH         = "cpu_fuzzer.dol"
-DOLPHIN_PATH            = "./dolphin-emu-nogui"
-VASM_PATH               = "./vasmppc_std"
+DOLPHIN_PATH            = "dolphin-emu-nogui"
+VASM_PATH               = "vasmppc_std"
 DOLPHIN_LOG             = "dolphin.log"
-
-def error(msg):
-    print("Error: ", msg)
-    exit(-1)
+LITERAL_POOL_BASE_ADDR  = 0x80080000
+LITERAL_POOL_SIZE       = 0x10000
 
 def sext(value, bits):
     mask = 2**(bits - 1)
@@ -26,6 +24,9 @@ def uimm():
 
 def gpr():
     return f"r{random.randint(0, 31)}"
+
+def fpr():
+    return f"f{random.randint(0, 31)}"
 
 def oe():
     return random.choice(["", "o"])
@@ -56,6 +57,25 @@ def emit_random_state(file):
         value = random.randint(0, 0xffffffff)
         file.write(f"lis r{i}, {hex(value >> 16)}\n")
         file.write(f"addi r{i}, r{i}, {hex(sext(value & 0xffff, 16))}\n")
+
+def random_literal_pool_access(file, size):
+    ra = gpr()
+    if ra == 0:
+        ra = 31
+    
+    file.write(f"lis {ra}, {hex(LITERAL_POOL_BASE_ADDR >> 16)}\n")
+    file.write(f"addi {ra}, {ra}, {hex(sext(LITERAL_POOL_BASE_ADDR & 0xffff, 16))}\n")
+    
+    offset = random.randint(LITERAL_POOL_SIZE / size) * size
+    return ra, offset
+
+def int_to_bytes(int):
+    return [
+        (int >> 24) & 0xff,
+        (int >> 16) & 0xff,
+        (int >>  8) & 0xff,
+        (int >>  0) & 0xff
+    ]
 
 # integer instructions
 def emit_addcx(file):
@@ -214,6 +234,95 @@ def emit_xoris(file):
 def emit_xorx(file):
     file.write(f"xor{rc()} {gpr()}, {gpr()}, {gpr()}\n")
 
+def emit_fabsx(file):
+    file.write(f"fabs{rc()} {fpr()}, {fpr()}\n")
+
+def emit_faddsx(file):
+    file.write(f"fadds{rc()} {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_faddx(file):
+    file.write(f"fadd{rc()} {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fcmpo(file):
+    file.write(f"fcmpo {crfd()}, {fpr()}, {fpr()}\n")
+
+def emit_fcmpu(file):
+    file.write(f"fcmpu {crfd()}, {fpr()}, {fpr()}\n")
+
+def emit_fctiwzx(file):
+    file.write(f"fctiwz{rc()} {fpr()}, {fpr()}\n")
+
+def emit_fctiwx(file):
+    file.write(f"fctiw{rc()} {fpr()}, {fpr()}\n")
+
+def emit_fdivsx(file):
+    file.write(f"fdivs{rc()} {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fdivx(file):
+    file.write(f"fdiv{rc()} {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fmaddsx(file):
+    file.write(f"fmadds{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fmaddx(file):
+    file.write(f"fmadd{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fmrx(file):
+    file.write(f"fmr{rc()} {fpr()}, {fpr()}\n")
+
+def emit_fmsubsx(file):
+    file.write(f"fmsubs{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fmsubx(file):
+    file.write(f"fmsub{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fmulsx(file):
+    file.write(f"fmuls{rc()} {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fmulx(file):
+    file.write(f"fmul{rc()} {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fnabsx(file):
+    file.write(f"fnabs{rc()} {fpr()}, {fpr()}\n")
+
+def emit_fnegx(file):
+    file.write(f"fneg{rc()} {fpr()}, {fpr()}\n")
+
+def emit_fnmaddsx(file):
+    file.write(f"fnmadds{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fnmaddx(file):
+    file.write(f"fnmadd{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fnmsubsx(file):
+    file.write(f"fnmsubs{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fnmsubx(file):
+    file.write(f"fnmsub{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fresx(file):
+    file.write(f"fres{rc()} {fpr()}, {fpr()}\n")
+
+def emit_frspx(file):
+    file.write(f"frsp{rc()} {fpr()}, {fpr()}\n")
+
+def emit_frsqrtex(file):
+    file.write(f"frsqrte{rc()} {fpr()}, {fpr()}\n")
+
+def emit_fselx(file):
+    file.write(f"fsel{rc()} {fpr()}, {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_fsubsx(file):
+    file.write(f"fsubs{rc()} {fpr()}, {fpr()}, {fpr()}\n")
+
+def emit_lfd(file):
+    ra, imm = random_literal_pool_access(file, 8)
+    file.write(f"lfd {fpr()}, {imm}({ra})\n")
+
+def emit_lfs(file):
+    ra, imm = random_literal_pool_access(file, 8)
+    file.write(f"lfs {fpr()}, {imm}({ra})\n")
+
 integer_emitters = [
     emit_addcx,
     emit_addex,
@@ -269,9 +378,43 @@ integer_emitters = [
     emit_xorx,
 ]
 
+floating_point_emitters = [
+    emit_fabsx,
+    emit_faddsx,
+    emit_faddx,
+    emit_faddsx,
+    emit_fcmpo,
+    emit_fcmpu,
+    emit_fctiwzx,
+    emit_fctiwx,
+    emit_fdivsx,
+    emit_fdivx,
+    emit_fmaddsx,
+    emit_fmaddx,
+    emit_fmrx,
+    emit_fmsubsx,
+    emit_fmsubx,
+    emit_fmulsx,
+    emit_fmulx,
+    emit_fnabsx,
+    emit_fnegx,
+    emit_fnmaddsx,
+    emit_fnmaddx,
+    emit_fnmsubsx,
+    emit_fnmsubx,
+    emit_fresx,
+    emit_frspx,
+    emit_frsqrtex,
+    emit_fselx,
+    emit_fsubsx
+]
+
 def emit_integer_tests(file):
     for i in range(10000):
         random.choice(integer_emitters)(file)
+
+    for i in range(10000):
+        random.choice(floating_point_emitters)(file)
 
 # floating point instructions
 # paired single instructions
@@ -301,30 +444,31 @@ def compile_tests():
         TESTCASES_SOURCE_PATH
     ])
 
-    binary_size = os.stat(FUZZER_BIN_PATH).st_size
-    binary_size_bytes = [
-        (binary_size >> 24) & 0xff,
-        (binary_size >> 16) & 0xff,
-        (binary_size >>  8) & 0xff,
-        (binary_size >>  0) & 0xff
-    ]
+    binary_size_raw = os.stat(FUZZER_BIN_PATH).st_size
 
-    print(hex(binary_size))
+    binary_size   = int_to_bytes(binary_size_raw)
+    binary_ofs    = int_to_bytes(0x100)
+    binary_addr   = int_to_bytes(0x80004000)
+    lit_pool_size = int_to_bytes(LITERAL_POOL_SIZE)
+    lit_pool_ofs  = int_to_bytes(0x100 + binary_size_raw)
+    lit_pool_addr = int_to_bytes(LITERAL_POOL_BASE_ADDR)
+
+    lit_pool = [random.randint(0, 255) for i in range(LITERAL_POOL_SIZE)]
 
     with open(FUZZER_DOL_PATH, 'wb') as dol:
         # insert the dol header
         dol.write(bytearray([
-            0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ] + binary_ofs + [      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, ] + lit_pool_ofs + [
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, ] + binary_addr + [     0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, ] + lit_pool_addr + [   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ] + binary_size_bytes +[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ] + binary_size +      [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, ] + lit_pool_size + [
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -333,8 +477,8 @@ def compile_tests():
         ]))
 
         with open(FUZZER_BIN_PATH, 'rb') as bin:
-            # dump the contents of bin into dol
             dol.write(bin.read())
+            dol.write(bytearray(lit_pool))
 
 def run_tests():
     dolphin_log = open(DOLPHIN_LOG, "w")
